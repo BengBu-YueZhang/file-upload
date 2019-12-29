@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import axios from 'axios';
 import {
   noop,
@@ -19,18 +19,19 @@ export interface IUpload {
   multiple?: boolean;
   directory?: boolean;
   headers?: object;
-  onChange?: (fileList: File[]) => void,
+  onChange?: (fileList: IFile[]) => void,
   onEnter?: (file: File) => Promise<any>;
   onSuccess?: () => void;
   onError?: () => void;
   onOverflowFileListMaximumLength?: (count: number) => void;
   onOverflowFileMaximumSize?: (file: File) => void;
   concurrency?: number;
+  chunkConcurrency?: number;
   MAXSIZE?: number;
   MAXLENGTH?: number;
   breakpointResume?: boolean;
   largeFile?: boolean;
-  chunkSize?: boolean;
+  chunkSize?: number;
   scheduler?: () => void;
 }
 
@@ -50,6 +51,11 @@ export interface IFile {
   progress: number;
 }
 
+export interface IChunk {
+  blob: Blob;
+  index: number;
+}
+
 const Upload: React.FC<IUpload> = (props) => {
 
   const {
@@ -57,78 +63,155 @@ const Upload: React.FC<IUpload> = (props) => {
     accept = 'image/*,.doc,.docx,.xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     action = '',
     drag = false,
-    multiple = false,
-    directory = false, // TODO: directory
+    directory = false, // TODO: TS中暂不支持该属性
     headers = {},
+    concurrency = 4,
+    chunkConcurrency = 8,
     onChange = noop,
     onEnter = noop,
     onSuccess = noop,
     onError = noop,
     onOverflowFileListMaximumLength = noop,
     onOverflowFileMaximumSize = noop,
-    concurrency = 4,
     MAXSIZE = 10 * 1024 * 1024,
     MAXLENGTH = 0,
     breakpointResume = false,
     largeFile = false,
     chunkSize = 2 * 1024 * 1024,
-    scheduler = axios,
     children
   } = props
 
   const inputFileEl = useRef(null);
+  const isLargeFile = useMemo(() => {
+    return largeFile || breakpointResume
+  }, [largeFile, breakpointResume])
+  const list: IFile[] = [];
   const queue: IFile[] = [];
   const uploadingQueue: IFile[] = [];
+  const uploadingChunkQueue: IChunk[] = [];
+  const chunks: IChunk[] = [];
+
+  let { multiple = false } = props
+
+  if (isLargeFile && multiple) {
+    // 大文件上传，只支持单文件上传
+    multiple = false
+  }
+
+  const applyOnChange = () => {
+    onChange && onChange(list);
+  }
+
+  const handleNormalFileChange = (files: FileList) => {
+    const total = files.length + fileList.length;
+    if (!MAXLENGTH && total > MAXLENGTH) {
+      onOverflowFileListMaximumLength && onOverflowFileListMaximumLength(total);
+    } else {
+      for (let i = 0; i < files.length; i++) {
+        if (files[i].size > MAXSIZE) {
+          onOverflowFileMaximumSize && onOverflowFileMaximumSize(files[i]);
+        } else {
+          const file = {
+            file: files[i],
+            uid: uuid(),
+            size: files[i].size,
+            name: files[i].name,
+            status: Status.Uploading,
+            response: null,
+            progress: 0
+          }
+          list.push(file);
+          queueFile(file);
+        }
+      }
+      applyOnChange();
+    }
+  }
+
+  const handleLargeFileChange = (file: File) => {
+    if (isFuntion(onEnter) && onEnter(file)) {
+      fragmentation(file)
+      list.push({
+        file: file,
+        uid: uuid(),
+        size: file.size,
+        name: file.name,
+        status: Status.Uploading,
+        response: null,
+        progress: 0
+      })
+      applyOnChange()
+    }
+  }
 
   const handleFileChange = () => {
     let files = ((inputFileEl.current as unknown) as HTMLInputElement).files;
     if (files) {
-      const total = files.length + fileList.length;
-      if (!MAXLENGTH && total > MAXLENGTH) {
-        onOverflowFileListMaximumLength && onOverflowFileListMaximumLength(total);
+      if (!isLargeFile) {
+        handleNormalFileChange(files);
       } else {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          const size = file.size;
-          const name = file.name;
-          if (size > MAXSIZE) {
-            onOverflowFileMaximumSize && onOverflowFileMaximumSize(file);
-          } else {
-            queueJob({
-              file,
-              uid: uuid(),
-              size,
-              name,
-              status: Status.Uploading,
-              response: null,
-              progress: 0
-            })
-          }
-        }
+        handleLargeFileChange(files[0]);
       }
     }
   }
 
-  const queueJob = (job: IFile) => {
-    queue.push(job);
-    flushJobs();
+  const queueFile = (file: IFile) => {
+    queue.push(file);
+    flushFiles();
   }
 
-  const flushJobs = () => {
+  const flushFiles = () => {
     if (uploadingQueue.length < concurrency && queue.length > 0) {
       const uploadFile = queue.shift() as IFile;
       if (isFuntion(onEnter) && onEnter(uploadFile.file)) {
         uploadingQueue.push(uploadFile);
-        submit();
+        submitFile();
       }
     }
   }
 
-  const submit = () => {
+  const flushChunks = () => {
+    if (uploadingChunkQueue.length < chunkConcurrency && chunks.length > 0) {
+      const uploadChunk = chunks.shift() as IChunk;
+      uploadingChunkQueue.push(uploadChunk);
+      submitChunk();
+    }
+  }
+
+  const submitFile = () => {
+  }
+
+  const submitChunk = () => {
   }
   
-  // Slicing files
-  const fragmentation = () => {
+  // 文件分片
+  const fragmentation = (file: File) => {
+    if (file.size > chunkSize) {
+      let start = 0;
+      let end = 0;
+      let index = 0;
+      while (true) {
+        end += chunkSize;
+        const blob = file.slice(start, end);
+        start = end;
+        index += 1;
+        if (!blob.size) {
+          break;
+        }
+        chunks.push({
+          blob,
+          index
+        });
+        flushChunks();
+      }
+    } else {
+      const blob = file.slice(0);
+      chunks.push({
+        blob,
+        index: 0
+      });
+      flushChunks();
+    }
   }
 
   return (
