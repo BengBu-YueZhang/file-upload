@@ -7,7 +7,7 @@ const App: React.FC = () => {
   return (
     <div className="App">
       <Upload>
-        <Button variant="contained" color="primary">Upload</Button>
+        <span>upload</span>
       </Upload>
     </div>
   );
