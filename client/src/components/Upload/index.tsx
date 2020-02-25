@@ -12,6 +12,7 @@ import {
 const inputFileId = uuid()
 
 export interface IUpload {
+  method: 'get' | 'post';
   fileList?: IFile[];
   accept?: string;
   action?: string;
@@ -53,12 +54,14 @@ export interface IFile {
 
 export interface IChunk {
   blob: Blob;
-  index: number;
+  index: string;
+  md5: string;
 }
 
 const Upload: React.FC<IUpload> = (props) => {
 
   const {
+    method = 'post',
     fileList = [],
     accept = 'image/*,.doc,.docx,.xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     action = '',
@@ -179,9 +182,20 @@ const Upload: React.FC<IUpload> = (props) => {
   }
 
   const submitFile = () => {
+    const uploadFile = uploadingQueue.shift() as IFile;
+    const formData = new FormData();
+    formData.append('file', uploadFile.file);
   }
 
   const submitChunk = () => {
+    const uploadChunk = uploadingChunkQueue.shift() as IChunk;
+    const formData = new FormData();
+    formData.append('index', uploadChunk.index);
+    formData.append('md5', uploadChunk.md5);
+    formData.append('file', uploadChunk.blob);
+  }
+
+  const submitChunkMerge = () => {
   }
   
   // 文件分片
@@ -200,7 +214,8 @@ const Upload: React.FC<IUpload> = (props) => {
         }
         chunks.push({
           blob,
-          index
+          index: index + '',
+          md5: md5(blob)
         });
         flushChunks();
       }
@@ -208,7 +223,8 @@ const Upload: React.FC<IUpload> = (props) => {
       const blob = file.slice(0);
       chunks.push({
         blob,
-        index: 0
+        index: `0`,
+        md5: md5(blob)
       });
       flushChunks();
     }
