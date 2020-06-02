@@ -1,5 +1,6 @@
 import React from 'react';
 import './index.css'
+import http from '../../utils/http';
 
 export interface IUpload {
 };
