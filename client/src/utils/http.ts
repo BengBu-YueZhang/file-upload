@@ -9,7 +9,7 @@ const ignoreDuplicateOf = [
 
 export const trim = (str: string) => {
   return str.replace(/^\s*/, '').replace(/\s*$/, '');
-}
+};
 
 export const isFormData = (val: any): boolean => {
   return (typeof FormData !== 'undefined') && (val instanceof FormData);
@@ -71,7 +71,7 @@ export const createError = (
 ): Error => {
   const error = new Error(message);
   return enhanceError(error, config, code, request, response);
-}
+};
 
 export const enhanceError = (
   error: any,
@@ -102,7 +102,7 @@ export const enhanceError = (
     };
   };
   return error;
-}
+};
 
 const http = (config: any): Promise<any> => {
   return new Promise((resolve, reject) => {
