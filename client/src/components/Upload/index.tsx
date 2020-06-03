@@ -8,6 +8,12 @@ import http from '../../utils/http';
 import noop from '../../utils/noop';
 import uuid from '../../utils/uuid';
 
+enum Status {
+  Uploading,
+  Done,
+  Error
+};
+
 export interface IUpload {
   accept?: string; // 允许上传的文件类型
   action?: string; // 上传地址
@@ -23,9 +29,20 @@ export interface IUpload {
   onChange?: () => void;
   onSuccess?: () => void; // 上传成功的回调
   onError?: () => void; // 上传失败的回调
+  onOversize?: (file: File) => void;
 };
 
-export interface iFile {
+export interface IFile {
+  file: File;
+  uid: string;
+  size: number;
+  name: string;
+  status: Status;
+  response: JSON | null;
+  progress: number;
+};
+
+export interface IChunk {
 };
 
 const Upload: React.FC<IUpload> = (props) => {
@@ -35,7 +52,6 @@ const Upload: React.FC<IUpload> = (props) => {
     accept,
     action,
     drag,
-    multiple,
     headers,
     concurrency,
     chunkConcurrency,
@@ -45,20 +61,33 @@ const Upload: React.FC<IUpload> = (props) => {
     large,
     onChange,
     onSuccess,
-    onError
+    onError,
+    onOversize
+  } = props;
+  let {
+    multiple
   } = props;
   const inputFileEl = useRef(null);
   const inputFileElId = useMemo(() => uuid(), []);
   const isLarge = useMemo(() => large || breakpointResume, [large, breakpointResume]);
+  // 文件列表
+  const [fileList, setFileList] = useState<IFile[]>([]);
+  // chunk列表
+  const [chunkList, setChunkList] = useState([]);
   // 使用两个数组，做并发上传的限制
   // 文件待上传队列
-  const fileQueue = useState([]);
+  const [fileQueue, setFileQueue] = useState<IFile[]>([]);
   // 正在上传的文件队列
-  const uploadFileQueue = useState([]);
+  const [uploadFileQueue, setUploadFileQueue] = useState<IFile[]>([]);
   // chunk待上传队列
-  const chunkQueue = useState([]);
+  const [chunkQueue, setChunkQueue] = useState([]);
   // 正在上传的chunk队列
-  const uploadChunkQueue = useState([]);
+  const [uploadChunkQueue, setUploadChunkQueue] = useState([]);
+
+  // 如果是大文件上传，必须是单选
+  if (isLarge && multiple) {
+    multiple = false;
+  }
 
   const handleChange = () => {
     const files = ((inputFileEl.current as any) as HTMLInputElement).files;
@@ -71,10 +100,50 @@ const Upload: React.FC<IUpload> = (props) => {
     }
   };
 
+  const handleDrag = () => {
+  }
+
   const handleLargeFile = (file: File) => {
   };
 
   const handleSmallFile = (files: FileList) => {
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > (MAXSIZE as number)) {
+        onOversize && onOversize(files[i]);
+        continue;
+      } else {
+        const fileItem = {
+          file: files[i],
+          uid: uuid(),
+          size: files[i].size,
+          name: files[i].name,
+          status: Status.Uploading,
+          response: null,
+          progress: 0
+        };
+        setFileList(prevFileList => [...prevFileList, fileItem])
+        addFileQueue(fileItem);
+      }
+    }
+  };
+
+  const addFileQueue = (file: IFile) => {
+    setFileQueue(prevFileQueue => [...prevFileQueue, file]);
+    flushFileQueue();
+  };
+
+  const flushFileQueue = () => {
+    if (
+      uploadFileQueue.length < (concurrency as number) &&
+      fileQueue.length > 0
+    ) {
+    }
+  };
+
+  const addChunkQueue = () => {
+  };
+
+  const flushChunkQueue = () => {
   };
 
   return (
@@ -111,7 +180,8 @@ Upload.defaultProps = {
   large: false,
   onChange: noop,
   onSuccess: noop,
-  onError: noop
+  onError: noop,
+  onOversize: noop
 };
 
 export default Upload;
