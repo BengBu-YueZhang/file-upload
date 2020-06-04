@@ -75,7 +75,7 @@ const Upload: React.FC<IUpload> = (props) => {
   const inputFileEl = useRef(null);
   const inputFileElId = useMemo(() => uuid(), []);
   const isLarge = useMemo(() => large || breakpointResume, [large, breakpointResume]);
-  const isBreakpointResume;
+  const isBreakpointResume = useMemo(() => large && breakpointResume, [large, breakpointResume]);
   // 文件列表
   const [fileList, setFileList] = useState<IFile[]>([]);
   // chunk列表
@@ -207,9 +207,23 @@ const Upload: React.FC<IUpload> = (props) => {
   };
 
   const addChunkQueue = (chunk: IChunk) => {
+    setChunkQueue(prevChunkQueue => [...prevChunkQueue, chunk]);
+    flushChunkQueue();
   };
 
   const flushChunkQueue = () => {
+    if (
+      uploadChunkQueue.length < (chunkConcurrency as number) &&
+      chunkQueue.length > 0
+    ) {
+      const awaitUploadChunk = chunkQueue[0];
+      setChunkQueue(prevChunkQueue => {
+        prevChunkQueue.shift();
+        return [...prevChunkQueue];
+      })
+      setUploadChunkQueue(prevUploadChunkQueue => [...prevUploadChunkQueue, awaitUploadChunk]);
+      submitChunkQueue();
+    }
   };
 
   const submitChunkQueue = () => {
