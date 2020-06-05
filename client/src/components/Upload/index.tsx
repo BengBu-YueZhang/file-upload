@@ -73,7 +73,7 @@ const Upload: React.FC<IUpload> = (props) => {
     multiple
   } = props;
   const inputFileEl = useRef(null);
-  const inputFileElId = useMemo(() => uuid(), []);
+  // 只有大文件上传支持断点续传
   const isLarge = useMemo(() => large || breakpointResume, [large, breakpointResume]);
   const isBreakpointResume = useMemo(() => large && breakpointResume, [large, breakpointResume]);
   // 文件列表
@@ -106,7 +106,31 @@ const Upload: React.FC<IUpload> = (props) => {
     }
   };
 
-  const handleDrag = () => {
+  // 拖拽上传
+  const handleDrag = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const files = event.dataTransfer.files;
+    if (files) {
+      if (isLarge) {
+        handleLargeFile(files[0]);
+      } else {
+        handleSmallFile(files);
+      }
+    }
+  };
+
+  const handleDragover = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleDragleave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!drag) return;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   const handleLargeFile = (file: File) => {
@@ -230,11 +254,13 @@ const Upload: React.FC<IUpload> = (props) => {
   };
 
   return (
-    <label
-      htmlFor={inputFileElId}
-    >
+    <div>
+      <div
+        onDrag={handleDrag}
+        onDragLeave={handleDragleave}
+        onDragOver={handleDragover}
+      />
       <input
-        id={inputFileElId}
         ref={inputFileEl}
         type="file"
         style={{display: 'none'}}
@@ -245,14 +271,14 @@ const Upload: React.FC<IUpload> = (props) => {
       {
         children
       }
-    </label>
+    </div>
   )
 };
 
 Upload.defaultProps = {
   accept: 'image/*,.doc,.docx,.xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   action: '',
-  drag: false,
+  drag: true,
   multiple: false,
   headers: {},
   concurrency: 2,
