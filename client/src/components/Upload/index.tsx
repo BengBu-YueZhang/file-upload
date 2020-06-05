@@ -1,7 +1,8 @@
 import React, {
   useState,
   useRef,
-  useMemo
+  useMemo,
+  useEffect
 } from 'react';
 import './index.css'
 import http from '../../utils/http';
@@ -95,6 +96,17 @@ const Upload: React.FC<IUpload> = (props) => {
     multiple = false;
   }
 
+  useEffect(() => {
+    const onDrag = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    document.addEventListener('drag', onDrag);
+    return () => {
+      document.removeEventListener('drag', onDrag);
+    };
+  }, []);
+
   const handleChange = () => {
     const files = ((inputFileEl.current as any) as HTMLInputElement).files;
     if (files) {
@@ -109,8 +121,6 @@ const Upload: React.FC<IUpload> = (props) => {
   // 拖拽上传
   const handleDrag = (event: React.DragEvent<HTMLDivElement>) => {
     if (!drag) return;
-    event.preventDefault();
-    event.stopPropagation();
     const files = event.dataTransfer.files;
     if (files) {
       if (isLarge) {
@@ -123,14 +133,10 @@ const Upload: React.FC<IUpload> = (props) => {
 
   const handleDragover = (event: React.DragEvent<HTMLDivElement>) => {
     if (!drag) return;
-    event.preventDefault();
-    event.stopPropagation();
   };
 
   const handleDragleave = (event: React.DragEvent<HTMLDivElement>) => {
     if (!drag) return;
-    event.preventDefault();
-    event.stopPropagation();
   }
 
   const handleLargeFile = (file: File) => {
@@ -259,6 +265,7 @@ const Upload: React.FC<IUpload> = (props) => {
         onDrag={handleDrag}
         onDragLeave={handleDragleave}
         onDragOver={handleDragover}
+        style={{width: '400px', height: '400px', background: 'red'}}
       />
       <input
         ref={inputFileEl}
