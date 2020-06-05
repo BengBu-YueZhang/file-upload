@@ -149,6 +149,7 @@ const Upload: React.FC<IUpload> = (props) => {
     };
     setFileList(prevFileList => [...prevFileList, fileItem]);
     fileSlicing(file);
+    onChange && onChange(fileItem, fileList);
   };
 
   const handleSmallFile = (files: FileList) => {
@@ -167,6 +168,7 @@ const Upload: React.FC<IUpload> = (props) => {
         };
         setFileList(prevFileList => [...prevFileList, fileItem])
         addFileQueue(fileItem);
+        onChange && onChange(fileItem, fileList);
       }
     }
   };
@@ -205,11 +207,18 @@ const Upload: React.FC<IUpload> = (props) => {
         method: 'post',
         url: action,
         onUploadProgress: (event: ProgressEvent) => {
-          handleUploadProgress(event, uid);
+          uploadFile.progress = event.loaded / event.total
+          onChange && onChange(uploadFile, fileList);
         }
       }).then(res => {
+        uploadFile.status = UploadStatus.Done;
+        uploadFile.progress = 1;
+        onChange && onChange(uploadFile, fileList);
         onSuccess && onSuccess(res, uploadFile, fileList);
       }).catch(err => {
+        uploadFile.status = UploadStatus.Error;
+        uploadFile.progress = 0;
+        onChange && onChange(uploadFile, fileList);
         onError && onError(err, uploadFile, fileList);
       }).finally(() => {
         setUploadFileQueue(prevUploadFileQueue => prevUploadFileQueue.filter(file => file.uid !== uid))
@@ -278,10 +287,6 @@ const Upload: React.FC<IUpload> = (props) => {
   };
 
   const submitChunkQueue = () => {
-  };
-
-  const handleUploadProgress = (event: ProgressEvent, uid: string) => {
-
   };
 
   return (
