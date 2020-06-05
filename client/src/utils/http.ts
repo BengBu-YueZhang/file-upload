@@ -146,7 +146,42 @@ const http = (config: any): Promise<any> => {
       };
 
       settle(resolve, reject, response);
+    };
+
+    if ('setRequestHeader' in request) {
+      for (let key in requestHeaders) {
+        const val = requestHeaders[key]
+        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+          delete requestHeaders[key];
+        } else {
+          request.setRequestHeader(key, val);
+        }
+      }
     }
+
+    if (config.withCredentials) {
+      request.withCredentials = true;
+    }
+  
+    if (config.responseType) {
+      try {
+        request.responseType = config.responseType;
+      } catch (e) {
+        if (config.responseType !== 'json') {
+          throw e;
+        }
+      }
+    }
+
+    if (typeof config.onDownloadProgress === 'function') {
+      request.addEventListener('progress', config.onDownloadProgress);
+    }
+
+    if (typeof config.onUploadProgress === 'function' && request.upload) {
+      request.upload.addEventListener('progress', config.onUploadProgress);
+    }
+
+    request.send(requestData);
   });
 };
 
