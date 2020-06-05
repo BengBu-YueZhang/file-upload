@@ -27,9 +27,9 @@ export interface IUpload {
   chunkSize?: number; // 切片的大小
   breakpointResume?: boolean; // 是否支持断点上传
   large?: boolean; // 是否支持大文件上传
-  onChange?: () => void;
-  onSuccess?: () => void; // 上传成功的回调
-  onError?: () => void; // 上传失败的回调
+  onChange?: (file: IFile, fileList: IFile[]) => void;
+  onSuccess?: (res: any, file: IFile, fileList: IFile[]) => void; // 上传成功的回调
+  onError?: (err: any, file: IFile, fileList: IFile[]) => void; // 上传失败的回调
   onOversize?: (file: File) => void;
 };
 
@@ -39,7 +39,6 @@ export interface IFile {
   size: number;
   name: string;
   status: UploadStatus;
-  response: JSON | null;
   progress: number;
 };
 
@@ -146,7 +145,6 @@ const Upload: React.FC<IUpload> = (props) => {
       size: file.size,
       name: file.name,
       status: UploadStatus.Uploading,
-      response: null,
       progress: 0
     };
     setFileList(prevFileList => [...prevFileList, fileItem]);
@@ -165,7 +163,6 @@ const Upload: React.FC<IUpload> = (props) => {
           size: files[i].size,
           name: files[i].name,
           status: UploadStatus.Uploading,
-          response: null,
           progress: 0
         };
         setFileList(prevFileList => [...prevFileList, fileItem])
@@ -195,6 +192,30 @@ const Upload: React.FC<IUpload> = (props) => {
   };
 
   const submitFileQueue = () => {
+    // 并发上传
+    for (let i = 0; i < uploadFileQueue.length; i++) {
+      const uploadFile = uploadFileQueue[i]
+      const uid = uploadFile.uid;
+      const data = new FormData();
+      data.append('file', uploadFile.file);
+      data.append('type', 'file');
+      http({
+        data,
+        headers,
+        method: 'post',
+        url: action,
+        onUploadProgress: (event: ProgressEvent) => {
+          handleUploadProgress(event, uid);
+        }
+      }).then(res => {
+        onSuccess && onSuccess(res, uploadFile, fileList);
+      }).catch(err => {
+        onError && onError(err, uploadFile, fileList);
+      }).finally(() => {
+        setUploadFileQueue(prevUploadFileQueue => prevUploadFileQueue.filter(file => file.uid !== uid))
+        flushFileQueue();
+      })
+    }
   };
 
   // 大文件切片
@@ -257,6 +278,10 @@ const Upload: React.FC<IUpload> = (props) => {
   };
 
   const submitChunkQueue = () => {
+  };
+
+  const handleUploadProgress = (event: ProgressEvent, uid: string) => {
+
   };
 
   return (
