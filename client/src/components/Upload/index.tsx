@@ -290,7 +290,7 @@ const Upload: React.FC<IUpload> = (props) => {
     } else {
       if (chunkQueue.length === 0) {
         // 所有切片上传完成
-        mergeChunk();
+        mergeChunk(fileList[0]);
       }
     }
   };
@@ -332,7 +332,23 @@ const Upload: React.FC<IUpload> = (props) => {
     }
   };
 
-  const mergeChunk = () => {
+  const mergeChunk = (file: IFile) => {
+    http({
+      data: {
+        filename: file.name
+      },
+      url: ''
+    }).then(res => {
+      file.status = UploadStatus.Done;
+      file.progress = 1;
+      onChange && onChange(file, fileList, chunkList);
+      onSuccess && onSuccess(res, file, fileList, chunkList);
+    }).catch(err => {
+      file.status = UploadStatus.Error;
+      file.progress = 0;
+      onChange && onChange(file, fileList, chunkList);
+      onError && onError(err, file, fileList, chunkList);
+    })
   };
 
   return (
