@@ -27,10 +27,11 @@ export interface IUpload {
   chunkSize?: number; // 切片的大小
   breakpointResume?: boolean; // 是否支持断点上传
   large?: boolean; // 是否支持大文件上传
-  onChange?: (file: IFile, fileList: IFile[]) => void;
-  onSuccess?: (res: any, file: IFile, fileList: IFile[]) => void; // 上传成功的回调
-  onError?: (err: any, file: IFile, fileList: IFile[]) => void; // 上传失败的回调
-  onOversize?: (file: File) => void;
+  onChange?: (file: IFile, fileList: IFile[], chunkList?: IChunk[]) => void;
+  onSuccess?: (res: any, file: IFile, fileList: IFile[], chunkList?: IChunk[]) => void; // 上传成功的回调
+  onError?: (err: any, file: IFile, fileList: IFile[], chunkList?: IChunk[]) => void; // 上传失败的回调
+  onOversize?: (file: File) => void; // 超出文件限制大小
+  disabled?: boolean; // 是否禁用
 };
 
 export interface IFile {
@@ -67,7 +68,8 @@ const Upload: React.FC<IUpload> = (props) => {
     onChange,
     onSuccess,
     onError,
-    onOversize
+    onOversize,
+    disabled
   } = props;
   let {
     multiple
@@ -108,6 +110,7 @@ const Upload: React.FC<IUpload> = (props) => {
 
   const handleChange = () => {
     const files = ((inputFileEl.current as any) as HTMLInputElement).files;
+    // 重置状态
     if (files) {
       if (isLarge) {
         handleLargeFile(files[0]);
@@ -200,6 +203,7 @@ const Upload: React.FC<IUpload> = (props) => {
       const uid = uploadFile.uid;
       const data = new FormData();
       data.append('file', uploadFile.file);
+      data.append('filename', uploadFile.name);
       data.append('type', 'file');
       http({
         data,
@@ -207,7 +211,7 @@ const Upload: React.FC<IUpload> = (props) => {
         method: 'post',
         url: action,
         onUploadProgress: (event: ProgressEvent) => {
-          uploadFile.progress = event.loaded / event.total
+          uploadFile.progress = event.loaded / event.total;
           onChange && onChange(uploadFile, fileList);
         }
       }).then(res => {
@@ -283,10 +287,52 @@ const Upload: React.FC<IUpload> = (props) => {
       })
       setUploadChunkQueue(prevUploadChunkQueue => [...prevUploadChunkQueue, awaitUploadChunk]);
       submitChunkQueue();
+    } else {
+      if (chunkQueue.length === 0) {
+        // 所有切片上传完成
+        mergeChunk();
+      }
     }
   };
 
   const submitChunkQueue = () => {
+    for (let i = 0; i < chunkQueue.length; i++) {
+      const uploadChunk = chunkQueue[i];
+      const index = uploadChunk.index;
+      const data = new FormData();
+      data.append('chunk', uploadChunk.blob);
+      // 原文件名 + chunk的索引
+      data.append('chunkhash', `${uploadChunk.name}-${uploadChunk.index}`);
+      data.append('filename', uploadChunk.name);
+      data.append('type', 'chunk');
+      http({
+        data,
+        headers,
+        method: 'post',
+        url: action,
+        onUploadProgress: (event: ProgressEvent) => {
+          uploadChunk.progress = event.loaded / event.total;
+          // 大文件上传只支持单一文件上传
+          onChange && onChange(fileList[0], fileList, chunkList);
+        }
+      }).then(res => {
+        uploadChunk.status = UploadStatus.Done;
+        uploadChunk.progress = 1;
+        onChange && onChange(fileList[0], fileList, chunkList);
+        setUploadChunkQueue(prevUploadChunkQueue => prevUploadChunkQueue.filter(chunk => chunk.index !== index));
+        flushChunkQueue();
+      }).catch(err => {
+        // 如果有一个切片上传失败了，整个文件都算上传失败了
+        uploadChunk.status = UploadStatus.Error;
+        uploadChunk.progress = 0;
+        fileList[0].status = UploadStatus.Error;
+        fileList[0].progress = 0;
+        onError && onError(err, fileList[0], fileList, chunkList);
+      })
+    }
+  };
+
+  const mergeChunk = () => {
   };
 
   return (
@@ -327,7 +373,8 @@ Upload.defaultProps = {
   onChange: noop,
   onSuccess: noop,
   onError: noop,
-  onOversize: noop
+  onOversize: noop,
+  disabled: false
 };
 
 export default Upload;
