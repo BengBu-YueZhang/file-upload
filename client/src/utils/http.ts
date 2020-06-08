@@ -15,6 +15,96 @@ export const isFormData = (val: any): boolean => {
   return (typeof FormData !== 'undefined') && (val instanceof FormData);
 };
 
+export const isURLSearchParams = (val: any): boolean => {
+  return typeof URLSearchParams !== 'undefined' && val instanceof URLSearchParams;
+};
+
+export const isObject = (val: any): boolean => {
+  return val !== null && typeof val === 'object';
+};
+
+export const isUndefined = (val: any): boolean => {
+  return typeof val === 'undefined';
+};
+
+export const isArrayBufferView = (val: any): boolean => {
+  let result;
+  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+    result = ArrayBuffer.isView(val);
+  } else {
+    result = (val) && (val.buffer) && (val.buffer instanceof ArrayBuffer);
+  }
+  return result;
+}
+
+export const isArrayBuffer = (val: any): boolean => {
+  return toString.call(val) === '[object ArrayBuffer]';
+};
+
+export const isBuffer = (val: any): boolean => {
+  return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor)
+	  && typeof val.constructor.isBuffer === 'function' && val.constructor.isBuffer(val);
+};
+
+export const isStream = (val: any): boolean => {
+  return isObject(val) && isFunction(val.pipe);
+};
+
+export const isFile = (val: any): boolean => {
+  return toString.call(val) === '[object File]';
+};
+
+export const isBlob = (val: any): boolean => {
+  return toString.call(val) === '[object Blob]';
+};
+
+export const isFunction = (val: any): boolean => {
+  return toString.call(val) === '[object Function]';
+};
+
+export const setContentTypeIfUnset = (headers: any, value: any) => {
+  if (!isUndefined(headers) && isUndefined(headers['Content-Type'])) {
+    headers['Content-Type'] = value;
+  }
+};
+
+export const transformRequest = (data: any, headers: any): any => {
+  if (isFormData(data) ||
+    isArrayBuffer(data) ||
+    isBuffer(data) ||
+    isStream(data) ||
+    isFile(data) ||
+    isBlob(data)
+  ) {
+    return data;
+  }
+
+  if (isArrayBufferView(data)) {
+    return data.buffer;
+  }
+
+  if (isURLSearchParams(data)) {
+    setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
+    return data.toString();
+  }
+
+  if (isObject(data)) {
+    setContentTypeIfUnset(headers, 'application/json;charset=utf-8');
+    return JSON.stringify(data);
+  }
+
+  return data;
+};
+
+export const transformResponse = (data: any): any => {
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) { /* Ignore */ }
+  }
+  return data;
+};
+
 export const settle = (
   resolve: (value?: any) => void,
   reject: (reason?: any) => void,
@@ -107,9 +197,11 @@ export const enhanceError = (
 const http = (config: any): Promise<any> => {
   return new Promise((resolve, reject) => {
 
-    const requestData = config.data;
-    const requestHeaders = config.headers;
+    let requestData = config.data;
+    let requestHeaders = config.headers;
     let request = new XMLHttpRequest();
+
+    requestData = transformRequest(requestData, requestHeaders);
 
     // 判断是否是FormData对象, 如果是, 删除header的Content-Type字段，让浏览器自动设置Content-Type字段
     if (isFormData(requestData)) {
@@ -135,7 +227,8 @@ const http = (config: any): Promise<any> => {
       }
 
       const responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
-      const responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      let responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      responseData = transformResponse(responseData);
       const response = {
         data: responseData,
         status: request.status,
