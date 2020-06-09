@@ -18,6 +18,7 @@ enum UploadStatus {
 export interface IUpload {
   accept?: string; // 允许上传的文件类型
   action?: string; // 上传地址
+  mergeAction?: string;
   drag?: boolean; // 是否支持拖拽上传
   multiple?: boolean; // 是否支持多选，如果开启大文件上传，则不支持多选
   headers?: object; // 上传请求头
@@ -57,6 +58,7 @@ const Upload: React.FC<IUpload> = (props) => {
     children,
     accept,
     action,
+    mergeAction,
     drag,
     headers,
     concurrency,
@@ -337,7 +339,8 @@ const Upload: React.FC<IUpload> = (props) => {
       data: {
         filename: file.name
       },
-      url: ''
+      url: mergeAction,
+      method: 'post'
     }).then(res => {
       file.status = UploadStatus.Done;
       file.progress = 1;
@@ -377,6 +380,7 @@ const Upload: React.FC<IUpload> = (props) => {
 Upload.defaultProps = {
   accept: 'image/*,.doc,.docx,.xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   action: '',
+  mergeAction: '',
   drag: true,
   multiple: false,
   headers: {},

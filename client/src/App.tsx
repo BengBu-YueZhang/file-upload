@@ -6,7 +6,11 @@ import { Button } from 'antd';
 const App: React.FC = () => {
   return (
     <div className="App">
-      <Upload>
+      <Upload
+        mergeAction={'http://localhost:7788/upload/merge'}
+        action={'http://localhost:7788/upload'}
+        large={true}
+      >
         <span>上传</span>
       </Upload>
     </div>
