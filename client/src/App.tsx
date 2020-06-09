@@ -11,7 +11,7 @@ const App: React.FC = () => {
         action={'http://localhost:7788/upload'}
         large={true}
       >
-        <span>上传</span>
+        上传
       </Upload>
     </div>
   );

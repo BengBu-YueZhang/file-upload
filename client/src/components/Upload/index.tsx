@@ -354,13 +354,21 @@ const Upload: React.FC<IUpload> = (props) => {
     })
   };
 
+  const handleClick = () => {
+    if (!disabled) {
+      ((inputFileEl.current as any) as HTMLInputElement).value = '';
+      ((inputFileEl.current as any) as HTMLInputElement).click();
+    }
+  };
+
   return (
-    <div>
+    <span
+      onClick={handleClick}
+    >
       <div
         onDrag={handleDrag}
         onDragLeave={handleDragleave}
         onDragOver={handleDragover}
-        style={{width: '400px', height: '400px', background: 'red'}}
       />
       <input
         ref={inputFileEl}
@@ -373,7 +381,7 @@ const Upload: React.FC<IUpload> = (props) => {
       {
         children
       }
-    </div>
+    </span>
   )
 };
 
